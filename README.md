@@ -227,7 +227,6 @@ uid=<your_user_id>
 | `KAFKA_BROKER`          | 127.0.0.1:9092         | Kafka Broker 地址                      |
 | `KAFKA_TOPIC`           | push_msg_topic         | Kafka 主题名称                         |
 | `KAFKA_GROUP_ID`        | push_consumer_group    | Kafka 消费者组 ID                      |
-| `MYSQL_*`               | -                      | MySQL 连接参数                         |
 
 修改后重新编译即可生效。
 
