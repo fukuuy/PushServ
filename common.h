@@ -30,6 +30,7 @@ const int REDIS_PORT = 6379;
 
 const std::string KAFKA_BROKER = "127.0.0.1:9092";
 const std::string KAFKA_TOPIC = "push_msg_topic";
+const std::string KAFKA_GROUP_ID = "push_consumer_group";
 
 const std::string MYSQL_HOST = "127.0.0.1";
 const std::string MYSQL_USER = "root";

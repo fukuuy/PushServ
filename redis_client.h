@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <string>
 #include <hiredis/hiredis.h>
+#include <mutex>
 
 class RedisClient {
 public:
@@ -13,4 +14,5 @@ public:
 private:
     RedisClient() = default;
     redisContext* ctx_ = nullptr;
+    std::mutex mutex_;
 };

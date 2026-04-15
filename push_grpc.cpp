@@ -11,19 +11,13 @@ grpc::Status PushServiceImpl::PushMessage(grpc::ServerContext*,
     std::string uid = req->user_id();
     std::string content = req->content();
 
-    std::cout << "GRPC push to " << uid << ": " << content << std::endl;
+    std::cout << "GRPC received push request for user: " << uid << std::endl;
 
+    // 将消息写入 Kafka，由消费者异步处理
     KafkaProducer::Instance().Send(KAFKA_TOPIC, uid, content);
 
-    if (PushServer::Instance().IsUserOnline(uid)) {
-        PushServer::Instance().SendToUser(uid, content);
-        rsp->set_code(0);
-        rsp->set_msg("pushed");
-    }
-    else {
-        MySQLClient::Instance().InsertOfflineMsg(uid, content);
-        rsp->set_code(1);
-        rsp->set_msg("offline, saved to DB");
-    }
+    // 返回受理成功
+    rsp->set_code(0);
+    rsp->set_msg("accepted");
     return grpc::Status::OK;
 }

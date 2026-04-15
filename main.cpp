@@ -2,6 +2,7 @@
 #include "push_grpc.h"
 #include "redis_client.h"
 #include "kafka_client.h"
+#include "kafka_consumer.h"
 #include "mysql_client.h"
 #include <thread>
 #include <iostream>
@@ -24,12 +25,13 @@ void RunGRPC() {
 }
 
 int main() {
+    // 初始化依赖
     if (!RedisClient::Instance().Connect(REDIS_HOST, REDIS_PORT)) {
         printf("redis connect failed\n");
         return 1;
     }
     if (!KafkaProducer::Instance().Init(KAFKA_BROKER)) {
-        printf("kafka init failed\n");
+        printf("kafka producer init failed\n");
         return 1;
     }
     if (!MySQLClient::Instance().Connect()) {
@@ -37,10 +39,21 @@ int main() {
         return 1;
     }
 
+    // 初始化 Kafka 消费者
+    if (!KafkaConsumer::Instance().Init(KAFKA_BROKER, KAFKA_GROUP_ID, KAFKA_TOPIC)) {
+        printf("kafka consumer init failed\n");
+        return 1;
+    }
+    KafkaConsumer::Instance().Start();
+
+    // 启动 gRPC 服务线程
     std::thread grpc_thread(RunGRPC);
 
+    // 启动 TCP 推送服务（阻塞主线程）
     PushServer::Instance().Start(SERVER_PORT);
 
+    // 停止消费者（正常情况不会执行到这里，除非 PushServer 退出）
+    KafkaConsumer::Instance().Stop();
     grpc_thread.join();
     return 0;
 }

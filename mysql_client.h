@@ -11,4 +11,5 @@ public:
 private:
     MySQLClient() = default;
     MYSQL* mysql_ = nullptr;
+    std::mutex mutex_;
 };

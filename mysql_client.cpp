@@ -19,6 +19,7 @@ bool MySQLClient::Connect() {
 }
 
 void MySQLClient::InsertOfflineMsg(const std::string& uid, const std::string& content) {
+    std::lock_guard<std::mutex> lock(mutex_);
     if (!mysql_) return;
     char sql[2048];
     snprintf(sql, sizeof(sql),
