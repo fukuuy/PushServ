@@ -1,0 +1,16 @@
+﻿syntax = "proto3";
+package push;
+
+service PushService {
+    rpc PushMessage(PushRequest) returns (PushResponse);
+}
+
+message PushRequest {
+    string user_id = 1;
+    string content = 2;
+}
+
+message PushResponse {
+    int32 code = 1;
+    string msg  = 2;
+}
