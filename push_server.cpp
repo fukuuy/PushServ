@@ -2,8 +2,8 @@
 #include <iostream>
 
 PushServer& PushServer::Instance() {
-    static PushServer ins;
-    return ins;
+    static PushServer server;
+    return server;
 }
 
 bool PushServer::Start(int port) {
@@ -12,6 +12,7 @@ bool PushServer::Start(int port) {
 
     sockaddr_in sin{};
     sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = INADDR_ANY;
     sin.sin_port = htons(port);
 
     auto listener = evconnlistener_new_bind(
@@ -23,7 +24,10 @@ bool PushServer::Start(int port) {
 
     std::cout << "Push server started on 0.0.0.0:" << port << std::endl;
 
-    event* timer = event_new(base_, -1, EV_PERSIST, HeartbeatTimer, this);
+    event* timer = event_new(
+        base_, -1, 
+        EV_TIMEOUT | EV_PERSIST,
+        HeartbeatTimer, this);
     timeval tv{ 1, 0 };
     event_add(timer, &tv);
 
@@ -31,6 +35,7 @@ bool PushServer::Start(int port) {
     return true;
 }
 
+// 连接
 void PushServer::OnAccept(evconnlistener*, evutil_socket_t fd, sockaddr*, int, void*) {
     auto& server = Instance();
     auto bev = bufferevent_socket_new(server.base_, fd, BEV_OPT_CLOSE_ON_FREE);
@@ -41,6 +46,7 @@ void PushServer::OnAccept(evconnlistener*, evutil_socket_t fd, sockaddr*, int, v
     server.conn_map_[bev] = { bev, "", time(nullptr) };
 }
 
+// 接收数据
 void PushServer::OnRead(bufferevent* bev, void* ctx) {
     auto& server = *static_cast<PushServer*>(ctx);
     char buf[1024];
@@ -49,19 +55,50 @@ void PushServer::OnRead(bufferevent* bev, void* ctx) {
     buf[n] = 0;
     std::string data(buf);
 
-    std::lock_guard<std::mutex> lock(server.mutex_);
-    auto it = server.conn_map_.find(bev);
-    if (it == server.conn_map_.end()) return;
+    if (data.find("uid=") != 0) {
+        // 刷新心跳
+        std::lock_guard<std::mutex> lock(server.mutex_);
+        auto it = server.conn_map_.find(bev);
+        if (it != server.conn_map_.end())
+            it->second.last_heartbeat = time(nullptr);
+        return;
+    }
 
-    auto& conn = it->second;
-    conn.last_heartbeat = time(nullptr);
+    std::string uid = data.substr(4);
+    while (!uid.empty() && (uid.back() == '\r' || uid.back() == '\n'))
+        uid.pop_back();
 
-    if (data.find("uid=") == 0) {
-        std::string uid = data.substr(4);
-        conn.user_id = uid;
+    if (uid.empty()) return;
+
+    // 写入 Redis
+    std::string uid_to_set_online;
+    {
+        std::lock_guard<std::mutex> lock(server.mutex_);
+        auto it = server.conn_map_.find(bev);
+        if (it == server.conn_map_.end()) return;
+        it->second.user_id = uid;
+        it->second.last_heartbeat = time(nullptr);
+
+        auto old_it = server.user_map_.find(uid);
+        if (old_it != server.user_map_.end()) {
+            bufferevent* old_bev = old_it->second;
+            auto old_conn_it = server.conn_map_.find(old_bev);
+            if (old_conn_it != server.conn_map_.end()) {
+                std::string old_uid = old_conn_it->second.user_id;
+                server.conn_map_.erase(old_conn_it);
+              
+            }
+            // 关闭旧连接
+            bufferevent_free(old_bev);
+        }
+
         server.user_map_[uid] = bev;
-        RedisClient::Instance().SetUserOnline(uid, "127.0.0.1:8888");
-        std::cout << "User login: " << uid << std::endl;
+        uid_to_set_online = uid;  
+    }
+
+    if (!uid_to_set_online.empty()) {
+        RedisClient::Instance().SetUserOnline(uid_to_set_online, "");
+        std::cout << "User login: " << uid_to_set_online << std::endl;
     }
 }
 

@@ -49,10 +49,10 @@ int main() {
     // 启动 gRPC 服务线程
     std::thread grpc_thread(RunGRPC);
 
-    // 启动 TCP 推送服务（阻塞主线程）
+    // 启动 TCP 推送服务
     PushServer::Instance().Start(SERVER_PORT);
 
-    // 停止消费者（正常情况不会执行到这里，除非 PushServer 退出）
+    
     KafkaConsumer::Instance().Stop();
     grpc_thread.join();
     return 0;

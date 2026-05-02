@@ -14,7 +14,10 @@ bool RedisClient::Connect(const std::string& ip, int port) {
 void RedisClient::SetUserOnline(const std::string& uid, const std::string& server_addr) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!ctx_) return;
-    redisCommand(ctx_, "HSET online_map %s %s", uid.c_str(), server_addr.c_str());
+    if (!server_addr.empty())
+        redisCommand(ctx_, "HSET online_map %s %s", uid.c_str(), server_addr.c_str());
+    else
+        redisCommand(ctx_, "HSET online_map %s online", uid.c_str());
 }
 
 void RedisClient::SetUserOffline(const std::string& uid) {
